@@ -6,6 +6,7 @@ class FinanceModel(nn.Module):
     def __init__(self, input_dim):
         super().__init__()
         self.net = nn.Sequential(
+            nn.BatchNorm1d(input_dim),  # Normalize inputs
             nn.Linear(input_dim, 64),
             nn.ReLU(),
             nn.BatchNorm1d(64),  # Added Batch Normalization
@@ -14,8 +15,8 @@ class FinanceModel(nn.Module):
             nn.ReLU(),
             nn.BatchNorm1d(32),  # Added Batch Normalization
             nn.Dropout(0.2),  # Regularization
-            nn.Linear(32, 1),
-            nn.Sigmoid()
+            nn.Linear(32, 1)
+            # Removed Sigmoid for BCEWithLogitsLoss
         )
 
     def forward(self, x):
@@ -34,10 +35,9 @@ def train():
     
     # Compute class weights to handle imbalance
     class_counts = train_df['Target'].value_counts()
-    class_weights = class_counts[0] / class_counts
-    class_weights = torch.tensor([class_weights[0], class_weights[1]], dtype=torch.float32)
+    pos_weight = class_counts[0] / class_counts[1]
     
-    criterion = nn.BCELoss(weight=(y_train * class_weights[1] + (1 - y_train) * class_weights[0]))
+    criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor(pos_weight, dtype=torch.float32))
 
     print("Starting training...")
     for epoch in range(500):
