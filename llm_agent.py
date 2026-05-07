@@ -111,14 +111,11 @@ Based on the logs and current code, propose a SINGLE architectural improvement t
 Output the FULL, updated train.py python code inside a python code block.
 
 CRITICAL RULES:
-
-DO NOT rename the FinanceModel class. It MUST stay named FinanceModel so backtest.py can import it.
-
-Do not change the data loading paths (keep them exactly as 'data/train.csv').
-
-Do not forget to define the features array.
-
-Output ONLY valid python code. Do not include conversational text or markdown formatting outside the code block.
+1. DO NOT rename the `FinanceModel` class. It MUST stay exactly `FinanceModel` so backtest.py can import it.
+2. Do not change the data loading paths (keep them exactly as 'data/train.csv').
+3. Do not forget to define the `features` array.
+4. Output ONLY valid python code.
+5. PREVENT LAZY PREDICTIONS: The model is currently just predicting 1 (Buy) every day because of class imbalance. You must add techniques to prevent this (e.g., class weights in the loss function, dropout, regularization, or threshold tuning).
 """
 
         print("Querying LLM for hypothesis...")
@@ -174,12 +171,14 @@ Output ONLY valid python code. Do not include conversational text or markdown fo
 
             print(f"New Sharpe: {new_metric:.4f} | Best Sharpe: {self.best_metric:.4f}")
 
-            # 6. Keep or revert
+            # 6. Keep or Revert
             if new_metric > self.best_metric + self.improvement_threshold:
                 print("Improvement found! Committing new baseline...")
                 self.best_metric = new_metric
-                self.git_keep(f"Sharpe improved to {new_metric:.4f}")
+                # --- SWAP THESE TWO LINES ---
                 self.update_program_md("LLM Proposed Model", "Auto-updated", new_metric, "Iteration success")
+                self.git_keep(f"Sharpe improved to {new_metric:.4f}")
+                # ----------------------------
             else:
                 print("No significant improvement. Reverting to baseline...")
                 self.git_revert()

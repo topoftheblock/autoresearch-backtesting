@@ -8,10 +8,12 @@ class FinanceModel(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.ReLU(),
-            nn.Dropout(0.2),  # Added dropout for regularization
+            nn.BatchNorm1d(64),  # Added Batch Normalization
+            nn.Dropout(0.2),  # Regularization
             nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Dropout(0.2),  # Added dropout for regularization
+            nn.BatchNorm1d(32),  # Added Batch Normalization
+            nn.Dropout(0.2),  # Regularization
             nn.Linear(32, 1),
             nn.Sigmoid()
         )
@@ -29,8 +31,14 @@ def train():
     
     model = FinanceModel(input_dim=len(features))
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    criterion = nn.BCELoss()
     
+    # Compute class weights to handle imbalance
+    class_counts = train_df['Target'].value_counts()
+    class_weights = class_counts[0] / class_counts
+    class_weights = torch.tensor([class_weights[0], class_weights[1]], dtype=torch.float32)
+    
+    criterion = nn.BCELoss(weight=(y_train * class_weights[1] + (1 - y_train) * class_weights[0]))
+
     print("Starting training...")
     for epoch in range(500):
         model.train()  # Set the model to training mode
