@@ -7,6 +7,8 @@ def prepare_data(ticker="SPY", start="2015-01-01", end="2025-01-01"):
     print(f"Downloading data for {ticker}...")
     df = yf.download(ticker, start=start, end=end)
     
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
     # Feature Engineering
     df['Returns'] = df['Close'].pct_change()
     df['Vol_20'] = df['Returns'].rolling(20).std()

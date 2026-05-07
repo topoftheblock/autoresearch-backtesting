@@ -45,10 +45,3 @@ def run_backtest():
 
 if __name__ == '__main__':
     run_backtest()
-    print("--- Backtest Results ---")
-    print(f"Market Return:   {market_total_return * 100:.2f}%")
-    print(f"Strategy Return: {strategy_total_return * 100:.2f}%")
-    print(f"Sharpe Ratio:    {sharpe_ratio:.2f}")
-    print(f"BACKTEST_METRIC: sharpe={sharpe_ratio:.6f}")   # <-- ADD THIS
-
-    test_df.to_csv('data/backtest_results.csv')
