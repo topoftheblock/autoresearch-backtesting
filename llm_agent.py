@@ -1,105 +1,99 @@
 import subprocess
 import os
 import re
+import sys
 from openai import OpenAI
 
+
 class AutoResearchLLMAgent:
-    def __init__(self, max_iterations=5):
-        # Initialize the LLM client (Ensure OPENAI_API_KEY is in your environment variables)
+    def __init__(self, max_iterations=5, improvement_threshold=0.001):
         self.client = OpenAI()
         self.max_iterations = max_iterations
-        self.history = []
+        self.improvement_threshold = improvement_threshold
+        self.best_metric = -float("inf")
 
+    # ---------- FILE & SCRIPT HELPERS ----------
     def run_script(self, script_name):
-        """Runs a python script and returns the output."""
         print(f"Executing {script_name}...")
-        result = subprocess.run(["python", script_name], capture_output=True, text=True)
+        result = subprocess.run(
+            [sys.executable, script_name], capture_output=True, text=True
+        )
         return result.returncode == 0, result.stdout, result.stderr
 
     def read_file(self, filepath):
-        with open(filepath, 'r') as f:
+        if not os.path.exists(filepath):
+            return ""
+        with open(filepath, "r", encoding="utf-8") as f:
             return f.read()
 
     def write_file(self, filepath, content):
-        with open(filepath, 'w') as f:
+        with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
 
     def extract_code_block(self, text):
-        """Extracts python code from LLM's markdown response."""
         pattern = r"```python\n(.*?)\n```"
         match = re.search(pattern, text, re.DOTALL)
         return match.group(1) if match else text
 
-    def prompt_llm(self, current_code, backtest_output):
-        """Asks the LLM to improve the model based on the latest results."""
-        print("\n[Brain] Asking LLM for a better architecture...")
-        
-        system_prompt = (
-            "You are an expert quantitative researcher and AI engineer. "
-            "Your goal is to modify a PyTorch training script to improve the Sharpe ratio "
-            "of an S&P 500 directional trading strategy. "
-            "You are only allowed to output the raw python code for train.py wrapped in ```python blocks. "
-            "Do NOT change the feature inputs, only change the PyTorch model architecture, loss function, or optimizer."
+    # ---------- METRIC PARSING ----------
+    def parse_metric(self, stdout):
+        match = re.search(r"BACKTEST_METRIC: sharpe=([\d\.\-]+)", stdout)
+        if match:
+            return float(match.group(1))
+        return None
+
+    # ---------- GIT HELPERS ----------
+    def git_pre_experiment_commit(self):
+        subprocess.run(["git", "add", "."], capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "pre-experiment baseline"],
+            capture_output=True,
         )
 
-        user_prompt = f"""
-        Here is the current train.py:
-        ```python
-        {current_code}
-        ```
-        
-        Here were the results of running backtest.py on this model:
-        {backtest_output}
-        
-        Please rewrite train.py. Improve the neural network architecture (e.g., try deeper networks, dropouts, different learning rates, or advanced architectures) to increase the Strategy Return and Sharpe Ratio. Output the full, complete new train.py code.
-        """
-
-        response = self.client.chat.completions.create(
-            model="gpt-4o", # Or gpt-4-turbo, etc.
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.7
+    def git_keep(self, description):
+        subprocess.run(["git", "add", "."], capture_output=True)
+        subprocess.run(
+            ["git", "commit", "--amend", "-m", f"Experiment: {description}"],
+            capture_output=True,
         )
-        
-        return response.choices[0].message.content
 
-    def run_loop(self):
-        print("--- Starting LLM Autoresearch Loop ---")
-        
-        # Step 1: Ensure data is prepared initially
-        self.run_script("prepare.py")
+    def git_revert(self):
+        subprocess.run(["git", "reset", "--hard", "HEAD~1"], capture_output=True)
 
-        for iteration in range(self.max_iterations):
-            print(f"\n=== Iteration {iteration + 1} ===")
-            
-            # Step 2: Train the current model
-            success, train_out, train_err = self.run_script("train.py")
-            if not success:
-                print(f"Training failed. Error:\n{train_err}")
-                break
-                
-            # Step 3: Backtest the model
-            success, backtest_out, backtest_err = self.run_script("backtest.py")
-            if not success:
-                print(f"Backtesting failed. Error:\n{backtest_err}")
-                break
-                
-            print(backtest_out)
-            
-            # Step 4: LLM Generation (The "AI" part)
-            current_train_code = self.read_file("train.py")
-            llm_response = self.prompt_llm(current_train_code, backtest_out)
-            
-            # Step 5: Extract and apply new code
-            new_train_code = self.extract_code_block(llm_response)
-            self.write_file("train.py", new_train_code)
-            
-            print("[Brain] Successfully wrote new hypothesis to train.py.")
+    # ---------- PROGRAM.MD UPDATE ----------
+    def update_program_md(self, model_name, features, sharpe, notes):
+        md_path = "program.md"
+        content = self.read_file(md_path)
+        header_line = "| Date | Model | Features | Acc (Test) | Strat Return | Market Return | Sharpe | Notes |"
+        if header_line not in content:
+            print("[Warning] Experiment table header not found.")
+            return
 
-        print("\n--- Research Loop Complete ---")
+        lines = content.split("\n")
+        insert_idx = -1
+        header_idx = -1
+        for i, line in enumerate(lines):
+            if line.strip() == header_line.strip():
+                header_idx = i
+            if header_idx != -1 and i > header_idx + 1 and line.startswith("|"):
+                if "---" not in line and "Date" not in line:
+                    insert_idx = i
+        if insert_idx == -1:
+            insert_idx = header_idx + 2
 
-if __name__ == "__main__":
-    agent = AutoResearchLLMAgent(max_iterations=3)
-    agent.run_loop()
+        from datetime import datetime
+        today_date = datetime.today().strftime('%Y-%m-%d')
+        new_row = f"| {today_date} | {model_name} | {features} | - | - | - | {sharpe:.3f} | {notes} |"
+        lines.insert(insert_idx + 1, new_row)
+        self.write_file(md_path, "\n".join(lines))
+        print("Updated program.md with new experiment row.")
+
+    # ---------- LLM INTERACTION ----------
+    def prompt_hypothesis(self, program_md, train_code, backtest_code):
+        prompt = f"""You are an AI researcher improving a financial ML pipeline.
+Current project log (program.md):
+{program_md}
+
+Current training script (train.py):
+```python
+{train_code}
