@@ -62,7 +62,8 @@ class AutoResearchLLMAgent:
         )
 
     def git_revert(self):
-        subprocess.run(["git", "reset", "--hard", "HEAD~1"], capture_output=True)
+        # By using HEAD instead of HEAD~1, it only throws away UNCOMMITTED bad code
+        subprocess.run(["git", "reset", "--hard", "HEAD"], capture_output=True)
 
     # ---------- PROGRAM.MD UPDATE ----------
     def update_program_md(self, model_name, features, sharpe, notes):
@@ -102,6 +103,22 @@ Current training script (train.py):
 ```python
 {train_code}
 # your code here
+Current backtest script (backtest.py):
+
+Python
+{backtest_code}
+Based on the logs and current code, propose a SINGLE architectural improvement to train.py that will increase the Sharpe Ratio.
+Output the FULL, updated train.py python code inside a python code block.
+
+CRITICAL RULES:
+
+DO NOT rename the FinanceModel class. It MUST stay named FinanceModel so backtest.py can import it.
+
+Do not change the data loading paths (keep them exactly as 'data/train.csv').
+
+Do not forget to define the features array.
+
+Output ONLY valid python code. Do not include conversational text or markdown formatting outside the code block.
 """
 
         print("Querying LLM for hypothesis...")

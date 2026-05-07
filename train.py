@@ -8,8 +8,10 @@ class FinanceModel(nn.Module):
         self.net = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.ReLU(),
+            nn.Dropout(0.2),  # Added dropout for regularization
             nn.Linear(64, 32),
             nn.ReLU(),
+            nn.Dropout(0.2),  # Added dropout for regularization
             nn.Linear(32, 1),
             nn.Sigmoid()
         )
@@ -31,6 +33,7 @@ def train():
     
     print("Starting training...")
     for epoch in range(500):
+        model.train()  # Set the model to training mode
         optimizer.zero_grad()
         predictions = model(X_train)
         loss = criterion(predictions, y_train)
