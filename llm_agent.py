@@ -2,7 +2,11 @@ import subprocess
 import os
 import re
 import sys
+from datetime import datetime  # moved to top for cleanliness
 from openai import OpenAI
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class AutoResearchLLMAgent:
@@ -97,3 +101,73 @@ Current project log (program.md):
 Current training script (train.py):
 ```python
 {train_code}
+# your code here
+"""
+
+        print("Querying LLM for hypothesis...")
+        response = self.client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.7,
+        )
+        return response.choices[0].message.content
+
+    # ---------- CORE EXPERIMENT LOOP ----------
+    def run(self):
+        print("Starting AutoResearch Agent Loop...")
+        self.git_pre_experiment_commit()  # baseline commit
+
+        for i in range(self.max_iterations):
+            print(f"\n--- Iteration {i+1}/{self.max_iterations} ---")
+
+            # 1. Read context
+            program_md = self.read_file("program.md")
+            train_code = self.read_file("train.py")
+            backtest_code = self.read_file("backtest.py")
+
+            # 2. Form hypothesis and get new code
+            llm_response = self.prompt_hypothesis(program_md, train_code, backtest_code)
+            new_train_code = self.extract_code_block(llm_response)
+
+            # 3. Write new code to train.py
+            self.write_file("train.py", new_train_code)
+            print("Proposed changes written to train.py")
+
+            # 4. Run experiment
+            train_success, _, train_err = self.run_script("train.py")
+            if not train_success:
+                print("Training failed with an error. Reverting...")
+                print(f"Error snippet: {train_err[-300:]}")
+                self.git_revert()
+                continue
+
+            backtest_success, bt_out, bt_err = self.run_script("backtest.py")
+            if not backtest_success:
+                print("Backtesting failed with an error. Reverting...")
+                print(f"Error snippet: {bt_err[-300:]}")
+                self.git_revert()
+                continue
+
+            # 5. Evaluate results
+            new_metric = self.parse_metric(bt_out)
+            if new_metric is None:
+                print("Could not find BACKTEST_METRIC in output. Reverting...")
+                self.git_revert()
+                continue
+
+            print(f"New Sharpe: {new_metric:.4f} | Best Sharpe: {self.best_metric:.4f}")
+
+            # 6. Keep or revert
+            if new_metric > self.best_metric + self.improvement_threshold:
+                print("Improvement found! Committing new baseline...")
+                self.best_metric = new_metric
+                self.git_keep(f"Sharpe improved to {new_metric:.4f}")
+                self.update_program_md("LLM Proposed Model", "Auto-updated", new_metric, "Iteration success")
+            else:
+                print("No significant improvement. Reverting to baseline...")
+                self.git_revert()
+
+
+if __name__ == "__main__":
+    agent = AutoResearchLLMAgent()
+    agent.run()
