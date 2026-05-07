@@ -14,8 +14,7 @@ class AutoResearchLLMAgent:
         self.client = OpenAI()
         self.max_iterations = max_iterations
         self.improvement_threshold = improvement_threshold
-        self.best_metric = -float("inf")
-
+        self.best_metric = 1.6833
     # ---------- FILE & SCRIPT HELPERS ----------
     def run_script(self, script_name):
         print(f"Executing {script_name}...")
@@ -111,11 +110,12 @@ Based on the logs and current code, propose a SINGLE architectural improvement t
 Output the FULL, updated train.py python code inside a python code block.
 
 CRITICAL RULES:
-1. DO NOT rename the `FinanceModel` class. It MUST stay exactly `FinanceModel` so backtest.py can import it.
+1. DO NOT rename the `FinanceModel` class. It MUST stay exactly `FinanceModel`.
 2. Do not change the data loading paths (keep them exactly as 'data/train.csv').
 3. Do not forget to define the `features` array.
 4. Output ONLY valid python code.
-5. PREVENT LAZY PREDICTIONS: The model is currently just predicting 1 (Buy) every day because of class imbalance. You must add techniques to prevent this (e.g., class weights in the loss function, dropout, regularization, or threshold tuning).
+5. PREVENT LAZY PREDICTIONS: The model previously predicted 1 every day (Sharpe 1.68), but your recent fixes caused it to overcorrect and predict 0 every day (Sharpe 0.00). You must balance the model so it outputs a healthy mix of 1s and 0s. Try adjusting class weights carefully, normalizing the input features (BatchNorm/StandardScaler), or tuning the learning rate.6. IF USING LSTM/GRU: You MUST reshape the 2D input `x` into a 3D tensor `(batch_size, 1, features)` inside the `forward` pass before feeding it to the RNN.
+7. PYTORCH LOSS RULES: `nn.BCELoss` does NOT accept `pos_weight`. If you use `pos_weight`, you MUST switch to `nn.BCEWithLogitsLoss` and remove the final `Sigmoid` layer.
 """
 
         print("Querying LLM for hypothesis...")
