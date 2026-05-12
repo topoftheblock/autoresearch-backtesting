@@ -230,10 +230,10 @@ This will be logged to program.md so you know what you have already tried.
             success, stdout, stderr = self.run_script("train.py")
 
             if success:
-                print("✅ train.py executed successfully!")
+                print(" train.py executed successfully!")
                 return True, stdout, stderr, summary
 
-            print("❌ train.py failed. Extracting traceback and requesting fix from LLM...")
+            print(" train.py failed. Extracting traceback and requesting fix from LLM...")
             print(f"Error snippet: {stderr[-300:]}")
 
             error_message = (
@@ -247,7 +247,7 @@ This will be logged to program.md so you know what you have already tried.
             messages.append({"role": "assistant", "content": llm_reply})
             messages.append({"role": "user", "content": error_message})
 
-        print(f"⚠️ Max retries ({max_retries}) reached. The LLM could not fix the code.")
+        print(f" Max retries ({max_retries}) reached. The LLM could not fix the code.")
 
         return False, "", stderr, ""
 
