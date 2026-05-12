@@ -1,10 +1,18 @@
 import torch
 import pandas as pd
 import numpy as np
+import sys
 from train import FinanceModel
 
-def run_backtest():
-    test_df = pd.read_csv('data/test.csv', index_col=0)
+def run_backtest(split="test"):
+    # Load the requested dataset split (val or test)
+    file_path = f'data/{split}.csv'
+    try:
+        df = pd.read_csv(file_path, index_col=0)
+    except FileNotFoundError:
+        print(f"Error: Could not find {file_path}")
+        sys.exit(1)
+        
     features = ['Returns', 'Vol_20', 'SMA_10', 'SMA_50']
     
     # Load Model
@@ -13,35 +21,41 @@ def run_backtest():
     model.eval()
     
     # Generate Predictions
-    X_test = torch.tensor(test_df[features].values, dtype=torch.float32)
+    X = torch.tensor(df[features].values, dtype=torch.float32)
     with torch.no_grad():
-        preds = model(X_test).numpy().flatten()
+        preds = model(X).numpy().flatten()
     
     # Trading Strategy: Buy if model predicts UP (>0.5), stay in cash if DOWN (<0.5)
-    test_df['Signal'] = (preds > 0.5).astype(int)
+    df['Signal'] = (preds > 0.5).astype(int)
     
-    # Calculate Strategy Returns (Signal applied to next day's return)
-    test_df['Strategy_Return'] = test_df['Signal'] * test_df['Returns']
+    # Calculate Strategy Returns
+    df['Strategy_Return'] = df['Signal'] * df['Returns']
     
     # Calculate Cumulative Returns
-    test_df['Cum_Market'] = (1 + test_df['Returns']).cumprod()
-    test_df['Cum_Strategy'] = (1 + test_df['Strategy_Return']).cumprod()
+    df['Cum_Market'] = (1 + df['Returns']).cumprod()
+    df['Cum_Strategy'] = (1 + df['Strategy_Return']).cumprod()
     
     # Calculate Metrics
-    strategy_total_return = test_df['Cum_Strategy'].iloc[-1] - 1
-    market_total_return = test_df['Cum_Market'].iloc[-1] - 1
+    strategy_total_return = df['Cum_Strategy'].iloc[-1] - 1
+    market_total_return = df['Cum_Market'].iloc[-1] - 1
     
     # Annualized Volatility
-    strat_vol = test_df['Strategy_Return'].std() * np.sqrt(252) 
-    sharpe_ratio = (test_df['Strategy_Return'].mean() * 252) / strat_vol if strat_vol > 0 else 0
+    strat_vol = df['Strategy_Return'].std() * np.sqrt(252) 
+    sharpe_ratio = (df['Strategy_Return'].mean() * 252) / strat_vol if strat_vol > 0 else 0
     
-    print("--- Backtest Results ---")
+    print(f"--- {split.upper()} Backtest Results ---")
     print(f"Market Return:   {market_total_return * 100:.2f}%")
     print(f"Strategy Return: {strategy_total_return * 100:.2f}%")
-    print(f"Sharpe Ratio:    {sharpe_ratio:.2f}")
-    
-    test_df.to_csv('data/backtest_results.csv')
-    print(f"BACKTEST_METRIC: sharpe={sharpe_ratio:.6f}")
+    print(f"BACKTEST_METRIC: sharpe={sharpe_ratio:.4f}")
 
-if __name__ == '__main__':
-    run_backtest()
+if __name__ == "__main__":
+    # Default to test, but allow command-line override
+    dataset_split = "test"
+    if len(sys.argv) > 1:
+        dataset_split = sys.argv[1].lower()
+        
+    if dataset_split not in ["val", "test", "train"]:
+        print("Invalid split provided. Use 'val' or 'test'.")
+        sys.exit(1)
+        
+    run_backtest(dataset_split)

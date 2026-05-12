@@ -254,80 +254,68 @@ This will be logged to program.md so you know what you have already tried.
     # ---------- CORE EXPERIMENT LOOP ----------
     def run(self):
         print("Starting AutoResearch Agent Loop...")
-
         self.git_pre_experiment_commit()
 
         for i in range(self.max_iterations):
-            print(f"\n========== Iteration {i + 1}/{self.max_iterations} ==========")
+            print(f"\n========== Iteration {i+1}/{self.max_iterations} ==========")
 
-            # Read project context
             program_md = self.read_file("program.md")
             train_code = self.read_file("train.py")
             backtest_code = self.read_file("backtest.py")
 
-            # Build LLM prompt
-            base_prompt = self.get_hypothesis_prompt(
-                program_md,
-                train_code,
-                backtest_code,
-            )
+            base_prompt = self.get_hypothesis_prompt(program_md, train_code, backtest_code)
 
             print("Querying LLM for hypothesis and validating...")
-
-            train_success, train_out, train_err, exp_summary = (
-                self.generate_and_validate_code(
-                    base_prompt,
-                    max_retries=3,
-                )
-            )
-
+            train_success, train_out, train_err, exp_summary = self.generate_and_validate_code(base_prompt, max_retries=3)
+            
             if not train_success:
                 print("Training validation failed after max retries. Reverting to baseline...")
                 self.git_revert()
                 continue
 
-            # Run backtest
-            print("Running Backtest on new model...")
-
-            backtest_success, bt_out, bt_err = self.run_script("backtest.py")
-
+            # PHASE 1: Run Backtest on VALIDATION data during the iterative loop
+            print("Running Backtest on Validation Data...")
+            backtest_success, bt_out, bt_err = self.run_script("backtest.py", ["--val"])
             if not backtest_success:
-                print("Backtesting failed with an error. Reverting...")
+                print("Validation Backtesting failed with an error. Reverting...")
                 print(f"Error snippet: {bt_err[-300:]}")
                 self.git_revert()
                 continue
 
-            # Parse Sharpe metric
             new_metric = self.parse_metric(bt_out)
-
             if new_metric is None:
                 print("Could not find BACKTEST_METRIC in output. Reverting...")
                 self.git_revert()
                 continue
 
-            print(
-                f"New Sharpe: {new_metric:.4f} | "
-                f"Best Sharpe: {self.best_metric:.4f}"
-            )
+            print(f"New Validation Sharpe: {new_metric:.4f} | Best Val Sharpe: {self.best_metric:.4f}")
 
-            # Decide whether to keep experiment
             if new_metric > self.best_metric + self.improvement_threshold:
                 print("✨ Improvement found! Committing new baseline...")
-
                 self.best_metric = new_metric
-
-                self.update_program_md(
-                    "LLM Proposed Model",
-                    "Auto-updated",
-                    new_metric,
-                    exp_summary,
-                )
-
-                self.git_keep(f"Sharpe improved to {new_metric:.4f}")
-
+                
+                self.update_program_md("LLM Proposed Model", "Auto-updated", new_metric, exp_summary)
+                self.git_keep(f"Val Sharpe improved to {new_metric:.4f}")
             else:
                 print("No significant improvement. Reverting to baseline...")
                 self.git_revert()
+
+        # PHASE 2: Lock-in the best model and evaluate on unseen TEST data
+        print("\n========== RESEARCH PHASE COMPLETE ==========")
+        print("Running final evaluation on LOCKED TEST SET...")
+        test_success, test_out, test_err = self.run_script("backtest.py", ["--test"])
+        
+        if test_success:
+            final_sharpe = self.parse_metric(test_out)
+            print("==================================================")
+            print(f" FINAL OUT-OF-SAMPLE TEST SHARPE RATIO: {final_sharpe:.4f}")
+            print("==================================================")
+            
+            # Optionally, append this final result to program.md
+            self.update_program_md("FINAL TEST RESULT", "Locked-in Model", final_sharpe, "Out-of-sample performance")
+        else:
+            print("Final test backtest failed.")
+            print(f"Error snippet: {test_err[-300:]}")
 
 
 if __name__ == "__main__":
