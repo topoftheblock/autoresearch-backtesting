@@ -23,27 +23,32 @@ def run_backtest(mode="val"):
         raw_outputs = model(X).numpy().flatten()
         
         # SAFETY CHECK: Convert logits to probabilities if the model lacks a Sigmoid layer
-        # (Logits can be negative or > 1. Probabilities are strictly between 0 and 1)
         if (raw_outputs < 0).any() or (raw_outputs > 1).any():
             preds = 1 / (1 + np.exp(-raw_outputs))  # Sigmoid formula
         else:
             preds = raw_outputs
     
-    # --- DYNAMIC POSITION SIZING ---
-    # Strategy: Buy proportionally to our confidence above the 50% threshold.
-    # We map the probability range [0.5, 1.0] to a position size [0.0, 1.0]
-    # Example: 
-    #   Pred = 0.50 -> (0.50 - 0.5) * 2 = 0.0 (0% invested, stay in cash)
-    #   Pred = 0.65 -> (0.65 - 0.5) * 2 = 0.3 (30% invested)
-    #   Pred = 0.90 -> (0.90 - 0.5) * 2 = 0.8 (80% invested)
+    # --- DYNAMIC LONG/SHORT POSITION SIZING ---
+    # Strategy:
+    # 1. Prediction > 0.6 (High confidence UP): Go Long. 
+    #    Formula: (preds - 0.6) * 2.5 maps [0.6 to 1.0] -> [0.0 to 1.0] (0% to 100% Long)
+    # 2. Prediction < 0.4 (High confidence DOWN): Go Short. 
+    #    Formula: (preds - 0.4) * 2.5 maps [0.4 to 0.0] -> [0.0 to -1.0] (0% to -100% Short)
+    # 3. Prediction between 0.4 and 0.6: Neutral zone. Stay in cash (0.0).
     
-    df['Signal'] = np.where(preds > 0.5, (preds - 0.5) * 2, 0.0)
+    conditions = [
+        preds > 0.6,
+        preds < 0.4
+    ]
+    choices = [
+        (preds - 0.6) * 2.5,  # Scale into Long
+        (preds - 0.4) * 2.5   # Scale into Short (results in a negative multiplier)
+    ]
     
-    # OPTIONAL: If you want to enable Long/Short trading, comment out the line above 
-    # and uncomment the line below. This scales from -100% (Short) to +100% (Long).
-    # df['Signal'] = (preds - 0.5) * 2 
+    df['Signal'] = np.select(conditions, choices, default=0.0)
     
-    # Calculate Strategy Returns (Signal applied to next day's return)
+    # Calculate Strategy Returns 
+    # (A negative signal multiplied by a negative market return equals a positive strategy return!)
     df['Strategy_Return'] = df['Signal'] * df['Returns']
     
     # Calculate Cumulative Returns
