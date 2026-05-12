@@ -44,7 +44,20 @@ class AutoResearchLLMAgent:
     def extract_code_block(self, text):
         pattern = r"```python\n(.*?)\n```"
         match = re.search(pattern, text, re.DOTALL)
+
         return match.group(1) if match else text
+
+    def extract_summary(self, text):
+        """Extracts the hyperparameter summary provided by the LLM."""
+
+        pattern = r"<summary>(.*?)</summary>"
+        match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+
+        # Clean up newlines so it fits nicely in the Markdown table
+        if match:
+            return match.group(1).strip().replace("\n", " ")
+
+        return "Auto-updated architecture and hyperparameters."
 
     # ---------- METRIC PARSING ----------
     def parse_metric(self, stdout):
@@ -73,7 +86,6 @@ class AutoResearchLLMAgent:
         )
 
     def git_revert(self):
-        # By using HEAD instead of HEAD~1, it only throws away UNCOMMITTED bad code
         subprocess.run(["git", "reset", "--hard", "HEAD"], capture_output=True)
 
     # ---------- PROGRAM.MD UPDATE ----------
@@ -116,7 +128,7 @@ class AutoResearchLLMAgent:
 
         self.write_file(md_path, "\n".join(lines))
 
-        print("Updated program.md with new experiment row.")
+        print(f"Updated program.md with new experiment row. Notes: {notes}")
 
     # ---------- LLM INTERACTION & VALIDATION ----------
     def get_hypothesis_prompt(self, program_md, train_code, backtest_code):
@@ -135,7 +147,7 @@ Current backtest script (backtest.py):
 {backtest_code}
 ```
 
-Based on the logs and current code, propose a SINGLE architectural improvement to train.py that will increase the Sharpe Ratio.
+Based on the logs and current code, propose an architectural or hyperparameter improvement to train.py that will increase the Sharpe Ratio.
 
 Output the FULL, updated train.py python code inside a python code block.
 
@@ -149,7 +161,6 @@ CRITICAL RULES:
 PREVENT LAZY PREDICTIONS:
 The model previously predicted 1 every day (Sharpe 1.68), but your recent fixes caused it to overcorrect and predict 0 every day (Sharpe 0.00).
 You must balance the model so it outputs a healthy mix of 1s and 0s.
-Try adjusting class weights carefully, normalizing the input features (BatchNorm/StandardScaler), or tuning the learning rate.
 
 IF USING LSTM/GRU:
 You MUST reshape the 2D input x into a 3D tensor (batch_size, 1, features) inside the forward pass before feeding it to the RNN.
@@ -157,6 +168,19 @@ You MUST reshape the 2D input x into a 3D tensor (batch_size, 1, features) insid
 PYTORCH LOSS RULES:
 - nn.BCELoss does NOT accept pos_weight.
 - If you use pos_weight, you MUST switch to nn.BCEWithLogitsLoss and remove the final Sigmoid layer.
+
+HYPERPARAMETER TUNING:
+Actively search for better hyperparameters.
+Do not leave lr=0.001, epochs=500, or dropout rates hardcoded to their previous values.
+Adjust them in your generated code to explore the search space and find better local minima.
+
+EXPERIMENT TRACKING:
+Before your Python code block, you MUST provide a brief 1-2 sentence summary of your changes wrapped in <summary> tags.
+This summary MUST explicitly state the hyperparameters you chose.
+Example:
+<summary>Switched to GRU, changed lr to 0.005, increased epochs to 600, and set dropout to 0.3.</summary>
+
+This will be logged to program.md so you know what you have already tried.
 """
 
     def generate_and_validate_code(self, base_prompt, max_retries=3):
@@ -165,7 +189,7 @@ PYTORCH LOSS RULES:
         and feeds back any errors for debugging.
 
         Returns:
-            tuple: (success_boolean, final_stdout, final_stderr)
+            tuple: (success_boolean, final_stdout, final_stderr, summary_string)
         """
 
         messages = [
@@ -186,7 +210,6 @@ PYTORCH LOSS RULES:
         for attempt in range(max_retries):
             print(f"\n--- Code Generation Attempt {attempt + 1}/{max_retries} ---")
 
-            # 1. Get code from LLM
             response = self.client.chat.completions.create(
                 model="gpt-4o",
                 messages=messages,
@@ -195,7 +218,10 @@ PYTORCH LOSS RULES:
 
             llm_reply = response.choices[0].message.content
 
-            # 2. Write and test it
+            # Extract summary for hyperparameter tracking
+            summary = self.extract_summary(llm_reply)
+
+            # Extract and save code
             new_train_code = self.extract_code_block(llm_reply)
             self.write_file("train.py", new_train_code)
 
@@ -205,55 +231,54 @@ PYTORCH LOSS RULES:
 
             if success:
                 print("✅ train.py executed successfully!")
-                return True, stdout, stderr
+                return True, stdout, stderr, summary
 
             print("❌ train.py failed. Extracting traceback and requesting fix from LLM...")
             print(f"Error snippet: {stderr[-300:]}")
 
-            # 3. Formulate the self-correction prompt
             error_message = (
                 "Your previous code execution failed with the following traceback:\n"
                 f"```text\n{stderr}\n```\n"
                 "Please analyze the error carefully, fix the bug(s), and provide "
-                "the fully corrected, complete train.py code."
+                "the fully corrected, complete train.py code. "
+                "Make sure to include your <summary> tag again."
             )
 
-            # Append context so the agent remembers what it wrote and what failed
             messages.append({"role": "assistant", "content": llm_reply})
             messages.append({"role": "user", "content": error_message})
 
         print(f"⚠️ Max retries ({max_retries}) reached. The LLM could not fix the code.")
 
-        return False, "", stderr
+        return False, "", stderr, ""
 
     # ---------- CORE EXPERIMENT LOOP ----------
     def run(self):
         print("Starting AutoResearch Agent Loop...")
 
-        # baseline commit
         self.git_pre_experiment_commit()
 
         for i in range(self.max_iterations):
             print(f"\n========== Iteration {i + 1}/{self.max_iterations} ==========")
 
-            # 1. Read context
+            # Read project context
             program_md = self.read_file("program.md")
             train_code = self.read_file("train.py")
             backtest_code = self.read_file("backtest.py")
 
-            # 2. Form hypothesis prompt
+            # Build LLM prompt
             base_prompt = self.get_hypothesis_prompt(
                 program_md,
                 train_code,
                 backtest_code,
             )
 
-            # 3. Generate and Validate Code (Auto-Healing Loop)
             print("Querying LLM for hypothesis and validating...")
 
-            train_success, train_out, train_err = self.generate_and_validate_code(
-                base_prompt,
-                max_retries=3,
+            train_success, train_out, train_err, exp_summary = (
+                self.generate_and_validate_code(
+                    base_prompt,
+                    max_retries=3,
+                )
             )
 
             if not train_success:
@@ -261,7 +286,7 @@ PYTORCH LOSS RULES:
                 self.git_revert()
                 continue
 
-            # 4. Run Backtest if Training Succeeded
+            # Run backtest
             print("Running Backtest on new model...")
 
             backtest_success, bt_out, bt_err = self.run_script("backtest.py")
@@ -272,7 +297,7 @@ PYTORCH LOSS RULES:
                 self.git_revert()
                 continue
 
-            # 5. Evaluate results
+            # Parse Sharpe metric
             new_metric = self.parse_metric(bt_out)
 
             if new_metric is None:
@@ -285,7 +310,7 @@ PYTORCH LOSS RULES:
                 f"Best Sharpe: {self.best_metric:.4f}"
             )
 
-            # 6. Keep or Revert
+            # Decide whether to keep experiment
             if new_metric > self.best_metric + self.improvement_threshold:
                 print("✨ Improvement found! Committing new baseline...")
 
@@ -295,7 +320,7 @@ PYTORCH LOSS RULES:
                     "LLM Proposed Model",
                     "Auto-updated",
                     new_metric,
-                    "Iteration success",
+                    exp_summary,
                 )
 
                 self.git_keep(f"Sharpe improved to {new_metric:.4f}")
