@@ -158,8 +158,15 @@ Based on the logs and current code, propose an architectural or hyperparameter i
 Output the FULL, updated train.py python code inside a python code block.
 
 *** CRITICAL INSTRUCTION ***
-You MUST review the "Ideas for Next Iteration" section in the provided program.md file. For this iteration, you MUST completely rewrite the FinanceModel class to implement one of those advanced architectures (e.g., 1D CNN, Transformer/Attention, Ensemble, or Autoencoder). 
-DO NOT simply add another linear layer or tweak the existing MLP. Be bold, take a risk, and write a complex PyTorch architecture.
+You MUST review the "Ideas for Next Iteration" section in the provided program.md file. 
+You must completely rewrite the FinanceModel class to implement an advanced architecture.
+
+*** COMBAT OVERFITTING (URGENT) ***
+Financial data is extremely noisy. Your primary goal is to prevent overfitting.
+1. You MUST add L2 Regularization (weight_decay) to the Adam optimizer (e.g., weight_decay=1e-4).
+2. You MUST use aggressive Dropout layers (0.4 to 0.6) between your layers.
+3. Keep the hidden dimensions extremely small (e.g., 8, 16, or 32). Do NOT use large hidden layers (like 128 or 256).
+4. Do NOT train for 500 epochs. Reduce the epochs significantly or implement a basic early stopping mechanism in the training loop.
 
 CRITICAL RULES:
 
