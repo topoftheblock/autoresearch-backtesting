@@ -219,7 +219,6 @@ This will be logged to program.md so you know what you have already tried.
             response = self.client.chat.completions.create(
                 model="gpt-5", # <-- Updated here
                 messages=messages,
-                temperature=0.7,
             )
 
             llm_reply = response.choices[0].message.content
