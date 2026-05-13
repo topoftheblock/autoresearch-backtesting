@@ -40,6 +40,7 @@ Develop an end-to-end automated machine learning pipeline to predict the daily d
 | 2026-05-07 | LLM Proposed Model | Auto-updated | - | - | - | 0.000 | Iteration success |
 | 2026-05-07 | LLM Proposed Model | Auto-updated | - | - | - | 0.573 | Iteration success |
 | 2026-05-07 | LLM Proposed Model | Auto-updated | - | - | - | 2.429 | Iteration success |
+| 2026-05-13 | FINAL TEST RESULT | Locked-in Model | - | - | - | -0.824 | Out-of-sample performance |
 
 ## 5. Known Issues & Real-World Constraints
 * **Trading Costs:** The current backtest assumes 0 transaction fees and 0 slippage. This is unrealistic. 

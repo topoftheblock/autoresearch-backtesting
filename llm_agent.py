@@ -12,7 +12,7 @@ load_dotenv()
 
 
 class AutoResearchLLMAgent:
-    def __init__(self, max_iterations=5, improvement_threshold=0.001):
+    def __init__(self, max_iterations=15, improvement_threshold=0.001):
         self.client = OpenAI()
         self.max_iterations = max_iterations
         self.improvement_threshold = improvement_threshold
