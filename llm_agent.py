@@ -217,7 +217,7 @@ This will be logged to program.md so you know what you have already tried.
             print(f"\n--- Code Generation Attempt {attempt + 1}/{max_retries} ---")
 
             response = self.client.chat.completions.create(
-                model="gpt-5.0", # <-- Updated here
+                model="gpt-5", # <-- Updated here
                 messages=messages,
                 temperature=0.7,
             )
