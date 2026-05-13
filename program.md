@@ -30,6 +30,11 @@ Develop an end-to-end automated machine learning pipeline to predict the daily d
 *Ideas for Next Iteration:*
 * [ ] Switch to an LSTM or GRU to better capture the sequential, time-series nature of the data.
 * [ ] Try an XGBoost baseline; tree-based models often handle tabular financial data better than simple MLPs.
+* [ ] **1D Convolutional Neural Networks (CNN):** Use `nn.Conv1d` to extract local feature patterns over short time windows.
+* [ ] **Transformer / Attention Mechanism:** Implement `nn.MultiheadAttention` or a lightweight Transformer block to dynamically weigh the importance of specific features or recent time steps.
+* [ ] **Residual Connections (ResNet style):** Add skip-connections to the existing MLP to prevent vanishing gradients and allow for deeper architectures.
+* [ ] **Ensemble / Mixture Model:** Combine outputs from an MLP, a linear model, and an RNN within the forward pass to stabilize predictions and reduce variance.
+* [ ] **Feature Autoencoder:** Add an autoencoder bottleneck to compress noisy input features into a latent representation before passing them to the classifier head.
 
 ## 4. Experiment & Backtest Log
 
@@ -40,7 +45,6 @@ Develop an end-to-end automated machine learning pipeline to predict the daily d
 | 2026-05-07 | LLM Proposed Model | Auto-updated | - | - | - | 0.000 | Iteration success |
 | 2026-05-07 | LLM Proposed Model | Auto-updated | - | - | - | 0.573 | Iteration success |
 | 2026-05-07 | LLM Proposed Model | Auto-updated | - | - | - | 2.429 | Iteration success |
-| 2026-05-13 | FINAL TEST RESULT | Locked-in Model | - | - | - | -0.824 | Out-of-sample performance |
 
 ## 5. Known Issues & Real-World Constraints
 * **Trading Costs:** The current backtest assumes 0 transaction fees and 0 slippage. This is unrealistic. 
