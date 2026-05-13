@@ -19,11 +19,17 @@ class AutoResearchLLMAgent:
         self.best_metric = 0
 
     # ---------- FILE & SCRIPT HELPERS ----------
-    def run_script(self, script_name):
+    def run_script(self, script_name, args=None):
+        if args is None:
+            args = []
+            
         print(f"Executing {script_name}...")
 
+        # Append the additional arguments to the command list
+        command = [sys.executable, script_name] + args
+
         result = subprocess.run(
-            [sys.executable, script_name],
+            command,
             capture_output=True,
             text=True,
         )
