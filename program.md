@@ -20,6 +20,10 @@ Develop an end-to-end automated machine learning pipeline to predict the daily d
 * [ ] Add MACD (Moving Average Convergence Divergence).
 * [ ] Add RSI (Relative Strength Index) to capture overbought/oversold conditions.
 * [ ] Fetch VIX (Volatility Index) data as an external macro feature.
+* [ ] High Dropout: Increase Dropout significantly (to 0.4 or 0.5) to prevent co-adaptation of neurons.
+* [ ] L2 Regularization / Weight Decay: Add weight_decay=1e-3 to the Adam optimizer to penalize large weights.
+* [ ] Simpler Models: Use extreme bottlenecks. E.g., Linear(Input, 16) -> Linear(16, 4) -> Output.
+* [ ] Gaussian Noise: Add a custom layer that injects slight torch.randn noise to the inputs during training to make the model robust to market variance.
 
 ## 3. Model Architecture
 *Current:* * **Type:** Multi-Layer Perceptron (PyTorch)

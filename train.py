@@ -34,8 +34,14 @@ class ProfitAwareLoss(nn.Module):
 def train():
     # Load data
     train_df = pd.read_csv('data/train.csv', index_col=0)
+    val_df = pd.read_csv('data/val.csv', index_col=0) # <--- Added this
+    
+    # Calculate the continuous future return (the magnitude of the target)
     train_df['Future_Return'] = train_df['Returns'].shift(-1)
     train_df = train_df.dropna()
+
+    val_df['Future_Return'] = val_df['Returns'].shift(-1) # <--- Added this
+    val_df = val_df.dropna() # <--- Added this
     
     features = ['Returns', 'Vol_20', 'SMA_10', 'SMA_50']
     
