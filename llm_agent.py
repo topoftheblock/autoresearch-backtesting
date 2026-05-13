@@ -157,6 +157,10 @@ Based on the logs and current code, propose an architectural or hyperparameter i
 
 Output the FULL, updated train.py python code inside a python code block.
 
+*** CRITICAL INSTRUCTION ***
+You MUST review the "Ideas for Next Iteration" section in the provided program.md file. For this iteration, you MUST completely rewrite the FinanceModel class to implement one of those advanced architectures (e.g., 1D CNN, Transformer/Attention, Ensemble, or Autoencoder). 
+DO NOT simply add another linear layer or tweak the existing MLP. Be bold, take a risk, and write a complex PyTorch architecture.
+
 CRITICAL RULES:
 
 - DO NOT rename the FinanceModel class. It MUST stay exactly FinanceModel.
