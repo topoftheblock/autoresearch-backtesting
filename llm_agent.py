@@ -16,7 +16,7 @@ class AutoResearchLLMAgent:
         self.client = OpenAI()
         self.max_iterations = max_iterations
         self.improvement_threshold = improvement_threshold
-        self.best_metric = 1.6833
+        self.best_metric = 0
 
     # ---------- FILE & SCRIPT HELPERS ----------
     def run_script(self, script_name):
